@@ -126,6 +126,20 @@ class TestCodexBuildKwargs:
         )
         assert kw.get("extra_headers", {}).get("x-grok-conv-id") == "conv-123"
 
+    def test_xai_headers_preserve_request_override_headers(self, transport):
+        messages = [{"role": "user", "content": "Hi"}]
+        kw = transport.build_kwargs(
+            model="grok-3", messages=messages, tools=[],
+            session_id="conv-123",
+            is_xai_responses=True,
+            request_overrides={"extra_headers": {"X-Test": "1", "X-Trace": "abc"}},
+        )
+        assert kw.get("extra_headers") == {
+            "X-Test": "1",
+            "X-Trace": "abc",
+            "x-grok-conv-id": "conv-123",
+        }
+
     def test_minimal_effort_clamped(self, transport):
         messages = [{"role": "user", "content": "Hi"}]
         kw = transport.build_kwargs(
@@ -133,6 +147,37 @@ class TestCodexBuildKwargs:
             reasoning_config={"effort": "minimal"},
         )
         # "minimal" should be clamped to "low"
+        assert kw.get("reasoning", {}).get("effort") == "low"
+
+    def test_xai_reasoning_effort_passed(self, transport):
+        messages = [{"role": "user", "content": "Hi"}]
+        kw = transport.build_kwargs(
+            model="grok-4.3", messages=messages, tools=[],
+            is_xai_responses=True,
+            reasoning_config={"effort": "high"},
+        )
+        # xAI Responses must receive both encrypted reasoning content and the effort
+        assert kw.get("reasoning") == {"effort": "high"}
+        assert "reasoning.encrypted_content" in kw.get("include", [])
+
+    def test_xai_reasoning_disabled_no_reasoning_key(self, transport):
+        messages = [{"role": "user", "content": "Hi"}]
+        kw = transport.build_kwargs(
+            model="grok-4.3", messages=messages, tools=[],
+            is_xai_responses=True,
+            reasoning_config={"enabled": False},
+        )
+        # When reasoning is disabled, do not send the reasoning key at all
+        assert "reasoning" not in kw
+
+    def test_xai_minimal_effort_clamped(self, transport):
+        messages = [{"role": "user", "content": "Hi"}]
+        kw = transport.build_kwargs(
+            model="grok-4.3", messages=messages, tools=[],
+            is_xai_responses=True,
+            reasoning_config={"effort": "minimal"},
+        )
+        # "minimal" should be clamped to "low" for xAI as well
         assert kw.get("reasoning", {}).get("effort") == "low"
 
 
@@ -193,6 +238,36 @@ class TestCodexNormalizeResponse:
         assert isinstance(nr, NormalizedResponse)
         assert nr.content == "Hello world"
         assert nr.finish_reason == "stop"
+
+    def test_message_items_preserved_in_provider_data(self, transport):
+        """Codex assistant message item ids/phases must survive transport normalization."""
+        r = SimpleNamespace(
+            output=[
+                SimpleNamespace(
+                    type="message",
+                    role="assistant",
+                    id="msg_abc",
+                    phase="final_answer",
+                    content=[SimpleNamespace(type="output_text", text="Hello world")],
+                    status="completed",
+                ),
+            ],
+            status="completed",
+            incomplete_details=None,
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5,
+                                  input_tokens_details=None, output_tokens_details=None),
+        )
+        nr = transport.normalize_response(r)
+        assert nr.codex_message_items == [
+            {
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "Hello world"}],
+                "id": "msg_abc",
+                "phase": "final_answer",
+            }
+        ]
 
     def test_tool_call_response(self, transport):
         """Normalize a Codex response with tool calls."""
