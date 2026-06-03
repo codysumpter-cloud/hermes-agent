@@ -1,0 +1,18 @@
+{
+  "name": "prismtek-youtube-buddy-lipsync",
+  "version": "1.1.0",
+  "description": "Optional Hermes-compatible Prismtek/Buddy talking-host overlay workflow.",
+  "canonical_runtime": "codysumpter-cloud/buddy-agent#18",
+  "operator_reference": "codysumpter-cloud/buddy-brain#315",
+  "app_contract": "codysumpter-cloud/prismtek-apps#138",
+  "knowledge_reference": "codysumpter-cloud/knowledge-vault#4",
+  "upstream_context": "NousResearch/hermes-agent#26463",
+  "requires": {
+    "python": ">=3.11",
+    "commands": ["magick", "ffmpeg", "ffprobe"]
+  },
+  "verification": [
+    "python3 -m py_compile scripts/*.py",
+    "python3 -m pytest tests/test_prismtek_youtube_buddy_lipsync.py -q"
+  ]
+}

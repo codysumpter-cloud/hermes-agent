@@ -76,6 +76,9 @@ jobs:
       - name: Extract skill metadata for dashboard
         run: python3 website/scripts/extract-skills.py
 
+      - name: Generate skill docs and catalogs
+        run: python3 website/scripts/generate-skill-docs.py
+
       - name: Install dependencies
         run: npm ci
         working-directory: website
